@@ -21,13 +21,16 @@
   {                                \
     rcl_ret_t temp_rc = fn;        \
     if ((temp_rc != RCL_RET_OK)) { \
+      print_error_code(temp_rc);   \
       error_loop();                \
     }                              \
   }
+
 #define RCSOFTCHECK(fn)            \
   {                                \
     rcl_ret_t temp_rc = fn;        \
     if ((temp_rc != RCL_RET_OK)) { \
+      print_error_code(temp_rc);   \
     }                              \
   }
 
@@ -48,6 +51,12 @@ void error_loop() {
     digitalWrite(LED_PIN, !digitalRead(LED_PIN));
     delay(100);
   }
+}
+
+void print_error_code(rcl_ret_t& code)
+{
+  Serial.printf("error code: ");
+  Serial.printf("[error code %d]", code);
 }
 
 void subscription_callback(const void *msgin) {
@@ -110,12 +119,12 @@ void setup() {
       configMINIMAL_STACK_SIZE + 1000, NULL, tskIDLE_PRIORITY + 1, NULL);
 
   // create spin task
-  s2 = xTaskCreate(rclc_spin_task, "rclc_spin_task",
-                   configMINIMAL_STACK_SIZE + 1000, NULL, tskIDLE_PRIORITY + 1,
-                   NULL);
+  // s2 = xTaskCreate(rclc_spin_task, "rclc_spin_task",
+  //                  configMINIMAL_STACK_SIZE + 1000, NULL, tskIDLE_PRIORITY + 1,
+  //                  NULL);
 
   // check for creation errors
-  if (s1 != pdPASS || s2 != pdPASS) {
+  if (s1 != pdPASS) {
     Serial.println(F("Creation problem"));
     while (1)
       ;
@@ -126,11 +135,15 @@ void setup() {
 }
 
 static void rclc_spin_task(void *p) {
+    // RCCHECK(rclc_executor_spin(&executor));
   UNUSED(p);
 
   TickType_t xLastWakeTime = xTaskGetTickCount();
   while (1) {
-    RCCHECK(rclc_executor_spin(&executor));
+    // Serial.printf("execitor spin before");
+    RCCHECK(rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100)));
+    // delay(10);
+    // Serial.printf("execitor spin after");
     vTaskDelayUntil(&xLastWakeTime, 10);
   }
 }
@@ -149,12 +162,16 @@ static void chatter_publisher_task(void *p) {
 
     RCSOFTCHECK(rcl_publish(&publisher, &msg, NULL));
     // vTaskDelay(pdMS_TO_TICKS(1000));
-    vTaskDelayUntil(&xLastWakeTime, 1000);
+    vTaskDelayUntil(&xLastWakeTime, 100);
   }
 }
 
 void loop() {
   // Serial.printf("Error ");
+  // Serial.printf("execitor spin before");
+  // delay(100);
+  RCCHECK(rclc_executor_spin(&executor));
+  // Serial.printf("execitor spin after");
   digitalWrite(LED_PIN, !digitalRead(LED_PIN));
   delay(1000);
 }
